@@ -1,0 +1,6 @@
+{
+  "name": "Medidor de Altura de Andaime",
+  "description": "Aplicativo profissional que utiliza a câmera e sensores de orientação para calcular em tempo real a altura estimada de andaimes de forma prática e segura.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

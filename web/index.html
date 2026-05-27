@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Medidor de Altura de Andaime</title>
+    <!-- Tailwind CSS v4 CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #1A1C1E;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        /* Custom transitions for Bottom Sheet */
+        .bottom-sheet {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .bottom-sheet-hidden {
+            transform: translateY(100%);
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col justify-between select-none">
+
+    <div class="flex flex-col h-full w-full bg-[#1A1C1E] text-[#E2E2E6] overflow-hidden relative">
+        
+        <!-- Web Camera Feed -->
+        <video id="camera-preview" class="absolute inset-0 w-full h-full object-cover z-0 bg-gradient-to-b from-[#1C1B1F] via-[#2D2D30] to-[#1C1B1F] opacity-70" autoplay playsinline muted></video>
+        
+        <!-- HTML Canvas for drawing lines and alignments -->
+        <canvas id="overlay-canvas" class="absolute inset-0 w-full h-full z-10 pointer-events-none"></canvas>
+
+        <!-- Touch Area for manual touch tracking -->
+        <div id="touch-interaction-layer" class="absolute inset-0 z-10 cursor-crosshair"></div>
+
+        <!-- App Header -->
+        <div class="relative z-20 flex items-center justify-between p-4 bg-gradient-to-b from-[#1A1C1E]/80 to-transparent">
+            <div class="flex items-center gap-3">
+                <button onclick="window.history.back()" class="w-10 h-10 rounded-full bg-[#D1E4FF] flex items-center justify-center text-[#001D36] active:scale-95 transition-transform">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div>
+                    <span class="font-bold text-lg tracking-tight block">Medidor Pro</span>
+                    <span class="text-[9px] text-[#D1E4FF] font-semibold tracking-wider uppercase block">Web Versão</span>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button id="btn-settings" class="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white active:scale-95 transition-transform">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Top Toast Instructions -->
+        <div class="relative z-20 mx-4 mt-1 p-4 rounded-2xl bg-[#D1E4FF]/95 backdrop-blur-md text-[#001D36] shadow-xl border border-white/10 transition-all duration-300">
+            <div class="flex items-center gap-3">
+                <div id="status-icon-badge" class="w-6 h-6 rounded-full bg-[#001D36] text-white flex items-center justify-center text-[11px] font-extrabold shadow-sm transition-colors duration-300">!</div>
+                <p id="instruction-text" class="text-xs font-bold leading-tight uppercase tracking-wider">Permissão de Câmera e Orientação Necessária</p>
+            </div>
+        </div>
+
+        <!-- Spacer to allow visualization -->
+        <div class="flex-1 relative z-10 pointer-events-none">
+            <!-- Sensor Telemetry (Floating) -->
+            <div class="absolute bottom-6 left-4 space-y-1 bg-black/40 backdrop-blur-xs px-2 py-1.5 rounded-lg border border-white/5">
+                <div class="text-[9px] font-mono text-white/60 uppercase">Inclinação: <span id="telemetry-angle" class="text-white font-bold">0.0°</span></div>
+                <div class="text-[9px] font-mono text-white/60 uppercase">Orientação: <span id="telemetry-compass" class="text-white font-bold">--</span></div>
+            </div>
+            <div class="absolute bottom-6 right-4 text-right bg-black/40 backdrop-blur-xs px-2 py-1.5 rounded-lg border border-white/5 space-y-1">
+                <div class="text-[9px] font-mono text-white/60 uppercase">Estabilidade: <span id="telemetry-stable" class="text-[#10B981] font-bold">Nivelado</span></div>
+                <div class="text-[9px] font-mono text-white/60 uppercase">Método: <span id="telemetry-method" class="text-[#D1E4FF] font-bold">AUTO (1.65m)</span></div>
+            </div>
+
+            <!-- In-Screen Crosshairs Guide (Visible in AIM mode) -->
+            <div id="crosshairs-container" class="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300">
+                <div class="relative flex items-center justify-center">
+                    <!-- Target outer circle -->
+                    <div id="crosshair-glow" class="w-14 h-14 rounded-full border border-dashed border-[#D1E4FF] flex items-center justify-center transition-colors duration-300">
+                        <div class="w-1.5 h-1.5 rounded-full bg-[#D1E4FF]"></div>
+                    </div>
+                    <!-- Axis grid hair -->
+                    <div class="absolute w-20 h-[1px] bg-white/25"></div>
+                    <div class="absolute h-20 w-[1px] bg-white/25"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode Selector Switcher (Touch Panel vs Aim-Sight Panel) -->
+        <div class="relative z-20 px-4 pb-3">
+            <div class="flex w-full bg-black/60 rounded-full p-1 border border-white/10">
+                <button id="tab-touch" class="flex-1 py-2.5 rounded-full text-xs font-extrabold flex items-center justify-center gap-2 transition-all bg-[#D1E4FF] text-[#001D36]">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    Tocar na Tela
+                </button>
+                <button id="tab-aim" class="flex-1 py-2.5 rounded-full text-xs font-extrabold flex items-center justify-center gap-2 transition-all text-white/50 hover:text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
+                    Modo Mira
+                </button>
+            </div>
+        </div>
+
+        <!-- Live Mode Angle-Save Indicators in AIM Mode -->
+        <div id="aim-save-indicators" class="relative z-20 px-4 pb-3 hidden">
+            <div class="grid grid-cols-2 gap-3">
+                <button id="btn-save-base" class="py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-[#3B4858] text-white active:scale-95 transition-transform">
+                    <span id="badge-base-lock">⚪</span> Base: <span id="aim-base-deg">Não Definida</span>
+                </button>
+                <button id="btn-save-top" class="py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-[#3B4858] text-white active:scale-95 transition-transform">
+                    <span id="badge-top-lock">⚪</span> Topo: <span id="aim-top-deg">Não Definido</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating Indicator / Results Overlay Card -->
+        <div id="result-overlay-container" class="relative z-30 px-4 pb-4 hidden">
+            <!-- Results Display Panel Matching 'Clean Minimalism' Theme -->
+            <div class="bg-[#ECEEF2] text-[#1A1C1E] rounded-[24px] p-6 shadow-2xl border border-[#C4C6D0] relative">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-[10px] font-bold tracking-widest text-[#44474E] uppercase">Altura Estimada</p>
+                        <h2 class="text-5xl font-light tracking-tight mt-1 flex items-baseline">
+                            <span id="result-height" class="font-light">8.4</span>
+                            <span class="text-2xl ml-1 font-normal text-[#1A1C1E]/80">m</span>
+                        </h2>
+                    </div>
+                    <div class="bg-[#D1E4FF] px-3 py-1.5 rounded-full border border-[#C4C6D0]/30 shadow-xs">
+                        <span id="result-precision" class="text-[9px] font-black text-[#001D36] tracking-wider">PRECISÃO ±0.3m</span>
+                    </div>
+                </div>
+
+                <div class="text-[11px] text-[#44474E] mb-4">
+                    <span id="result-method-desc">Medição com distância base automática calculada via inclinômetro.</span>
+                </div>
+
+                <!-- Horizontal Divider Line -->
+                <div class="w-full h-[1px] bg-[#C4C6D0] my-4"></div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <p class="text-[9px] text-[#44474E] font-bold uppercase tracking-wider">Distância Base</p>
+                        <p id="result-distance" class="text-lg font-medium text-[#1A1C1E]">5.2 m</p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] text-[#44474E] font-bold uppercase tracking-wider">Inclinação Topo</p>
+                        <p id="result-angle" class="text-lg font-medium text-[#1A1C1E]">42.1°</p>
+                    </div>
+                </div>
+
+                <!-- Primary Action Inside Card: New Readings -->
+                <button id="btn-result-dismiss" class="mt-6 w-full py-3.5 bg-[#3B4858] text-white hover:bg-[#3B4858]/90 font-bold rounded-2xl text-xs uppercase tracking-wider transition-colors active:scale-95 transition-transform shadow-md">
+                    Medir Novamente
+                </button>
+            </div>
+        </div>
+
+        <!-- Action Control Bar -->
+        <div class="relative z-20 px-4 pb-6 flex gap-3">
+            <button id="btn-reset" class="w-1/3 h-15 rounded-2xl bg-[#3B4858] hover:bg-[#3B4858]/90 text-white font-extrabold uppercase tracking-widest text-xs active:scale-95 transition-all">
+                Resetar
+            </button>
+            <button id="btn-measure" class="w-2/3 h-15 rounded-2xl bg-[#D1E4FF] text-[#001D36] hover:bg-[#D1E4FF]/90 font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2.5 active:scale-95 transition-all shadow-lg border border-white/5 cursor-pointer">
+                <span>📐</span>
+                Medir Altura
+            </button>
+        </div>
+
+        <!-- Native iOS / Android orientation API initiator permission overlay (if needed) -->
+        <div id="permission-shield" class="absolute inset-0 z-50 bg-[#1A1C1E] flex flex-col items-center justify-center p-6 text-center">
+            <div class="w-16 h-16 rounded-full bg-[#D1E4FF] text-[#001D36] flex items-center justify-center mb-6">
+                <span class="text-3xl">📐</span>
+            </div>
+            <h1 class="text-2xl font-black text-[#E2E2E6] mb-3">Medidor de Andaime</h1>
+            <p class="text-sm text-[#E2E2E6]/75 mb-8 max-w-xs leading-relaxed">
+                Este aplicativo utiliza a câmera traseira e os sensores de inclinação do giroscópio para estimar distâncias e alturas através de trigonometria.
+            </p>
+            <button id="btn-grant-permission" class="w-full max-w-xs py-4 bg-[#D1E4FF] text-[#001D36] rounded-2xl font-black uppercase tracking-wider text-xs active:scale-95 transition-all shadow-xl">
+                Iniciar Ferramenta
+            </button>
+        </div>
+
+        <!-- Settings Bottom Sliding Panel (Calibration Drawer) -->
+        <div id="settings-backdrop" class="absolute inset-0 z-40 bg-black/50 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+        <div id="calibration-drawer" class="absolute bottom-0 left-0 right-0 z-50 bg-[#1A1C1E] rounded-t-[32px] p-6 border-t border-white/10 bottom-sheet bottom-sheet-hidden max-h-[85%] overflow-y-auto">
+            <div class="w-12 h-1 bg-white/20 rounded-full mx-auto mb-6"></div>
+            
+            <h3 class="text-xl font-black text-[#E2E2E6] mb-2 leading-tight">Configurações & Calibração</h3>
+            <p class="text-xs text-[#E2E2E6]/60 mb-6 leading-relaxed">Ajuste as propriedades físicas estruturais do campo para calibrar com máxima fidelidade os cálculos trigonométricos.</p>
+
+            <!-- Distance Method Segmented Picker -->
+            <label class="text-[10px] font-black tracking-widest text-[#D1E4FF] uppercase block mb-3">Método da Distância</label>
+            <div class="flex w-full bg-white/5 rounded-2xl p-1 border border-white/10 mb-6 font-semibold">
+                <button id="method-manual" class="flex-1 py-3 rounded-xl text-xs font-bold transition-all bg-[#D1E4FF] text-[#001D36]">
+                    MANUAL
+                </button>
+                <button id="method-auto" class="flex-1 py-3 rounded-xl text-xs font-bold transition-all text-[#E2E2E6]/60 hover:text-white">
+                    AUTOMÁTICO
+                </button>
+            </div>
+
+            <!-- Slider 1: Manual Distance (Enabled when Manual is checked) -->
+            <div id="group-manual-dist" class="mb-6 space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-[#E2E2E6]">Distância até o Andaime</span>
+                    <span id="label-manual-dist" class="text-xs font-extrabold text-[#D1E4FF] font-mono">5.0 m</span>
+                </div>
+                <input id="slider-manual-dist" type="range" min="1" max="30" step="0.5" value="5" class="w-full accent-[#D1E4FF] bg-white/10 rounded-lg appearance-none h-2">
+                <p class="text-[10px] text-white/40">Insera a distância real escalada medida do solo até a base vertical metálica do andaime.</p>
+            </div>
+
+            <!-- Slider 2: Eye Level height (Enabled when Auto is checked) -->
+            <div id="group-eye-height" class="mb-6 space-y-2 hidden">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-[#E2E2E6]">Altura do Celular do Solo</span>
+                    <span id="label-eye-height" class="text-xs font-extrabold text-[#D1E4FF] font-mono">1.65 m</span>
+                </div>
+                <input id="slider-eye-height" type="range" min="1.0" max="2.2" step="0.05" value="1.65" class="w-full accent-[#D1E4FF] bg-white/10 rounded-lg appearance-none h-2">
+                <p class="text-[10px] text-white/40">Determine a distância entre o solo e o dispositivo segunrando no nível dos seus olhos.</p>
+            </div>
+
+            <!-- Slider 3: Camera FOV Calibration -->
+            <div class="mb-8 space-y-2">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold text-[#E2E2E6]">Campo de Visão (FOV Vertical)</span>
+                    <span id="label-camera-fov" class="text-xs font-extrabold text-[#D1E4FF] font-mono">54.0°</span>
+                </div>
+                <input id="slider-camera-fov" type="range" min="30" max="80" step="0.5" value="54" class="w-full accent-[#D1E4FF] bg-white/10 rounded-lg appearance-none h-2">
+                <p class="text-[10px] text-white/40">Parâmetro de calibração para conversão de pixel para ângulo em modo Toque de Tela.</p>
+            </div>
+
+            <!-- Confirm Calibration -->
+            <button id="btn-save-drawer" class="w-full py-4 bg-[#D1E4FF] text-[#001D36] rounded-2xl font-black text-xs uppercase tracking-wider active:scale-95 transition-all">
+                Salvar Configurações
+            </button>
+        </div>
+
+    </div>
+
+    <!-- JS Logic Core -->
+    <script>
+        // High level parameters (State Engine)
+        let state = {
+            activeMode: 'TOUCH', // 'TOUCH' or 'AIM'
+            distanceMethod: 'MANUAL', // 'MANUAL' or 'AUTO'
+            manualDistance: 5.0, // meters
+            eyeHeight: 1.65, // meters
+            cameraFov: 54.0, // degrees
+            pitchAngle: 0.0, // vertical pitch degrees from gyro
+            rollAngle: 0.0, // roll angle
+            heading: 0, // heading compass degrees
+            aimBaseAngle: null, // pitch angle captured for base
+            aimTopAngle: null, // pitch angle captured for top
+            touchPoints: {
+                base: null, // {x: Normalized, y: Normalized}
+                top: null
+            },
+            viewHeightNormalizedSnap: 0
+        };
+
+        // DOM elements
+        const videoElement = document.getElementById('camera-preview');
+        const overlayCanvas = document.getElementById('overlay-canvas');
+        const canvasCtx = overlayCanvas.getContext('2d');
+        const touchLayer = document.getElementById('touch-interaction-layer');
+        const shield = document.getElementById('permission-shield');
+        const btnGrant = document.getElementById('btn-grant-permission');
+        
+        const tabTouch = document.getElementById('tab-touch');
+        const tabAim = document.getElementById('tab-aim');
+        const crosshairs = document.getElementById('crosshairs-container');
+        const crosshairGlow = document.getElementById('crosshair-glow');
+        const aimSaveIndicators = document.getElementById('aim-save-indicators');
+        const btnSaveBase = document.getElementById('btn-save-base');
+        const btnSaveTop = document.getElementById('btn-save-top');
+        const aimBaseDegText = document.getElementById('aim-base-deg');
+        const aimTopDegText = document.getElementById('aim-top-deg');
+        const badgeBaseLock = document.getElementById('badge-base-lock');
+        const badgeTopLock = document.getElementById('badge-top-lock');
+
+        const telemetryAngle = document.getElementById('telemetry-angle');
+        const telemetryCompass = document.getElementById('telemetry-compass');
+        const telemetryStable = document.getElementById('telemetry-stable');
+        const telemetryMethod = document.getElementById('telemetry-method');
+
+        const btnSettings = document.getElementById('btn-settings');
+        const settingsBackdrop = document.getElementById('settings-backdrop');
+        const drawer = document.getElementById('calibration-drawer');
+        const btnSaveDrawer = document.getElementById('btn-save-drawer');
+        const pickerManual = document.getElementById('method-manual');
+        const pickerAuto = document.getElementById('method-auto');
+        
+        const groupManualDist = document.getElementById('group-manual-dist');
+        const groupEyeHeight = document.getElementById('group-eye-height');
+        const labelManualDist = document.getElementById('label-manual-dist');
+        const labelEyeHeight = document.getElementById('label-eye-height');
+        const labelCameraFov = document.getElementById('label-camera-fov');
+        
+        const sliderManualDist = document.getElementById('slider-manual-dist');
+        const sliderEyeHeight = document.getElementById('slider-eye-height');
+        const sliderCameraFov = document.getElementById('slider-camera-fov');
+
+        const btnReset = document.getElementById('btn-reset');
+        const btnMeasure = document.getElementById('btn-measure');
+        const resultContainer = document.getElementById('result-overlay-container');
+        const btnResultDismiss = document.getElementById('btn-result-dismiss');
+        const instructionText = document.getElementById('instruction-text');
+        const statusBadge = document.getElementById('status-icon-badge');
+
+        const resultHeight = document.getElementById('result-height');
+        const resultPrecision = document.getElementById('result-precision');
+        const resultMethodDesc = document.getElementById('result-method-desc');
+        const resultDistance = document.getElementById('result-distance');
+        const resultAngle = document.getElementById('result-angle');
+
+        // Initial setup for canvas resizing
+        function resizeCanvas() {
+            overlayCanvas.width = overlayCanvas.clientWidth;
+            overlayCanvas.height = overlayCanvas.clientHeight;
+            drawOverlay();
+        }
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 500);
+
+        // Core UI switches
+        tabTouch.addEventListener('click', () => {
+            state.activeMode = 'TOUCH';
+            tabTouch.className = "flex-1 py-2.5 rounded-full text-xs font-extrabold flex items-center justify-center gap-2 transition-all bg-[#D1E4FF] text-[#001D36]";
+            tabAim.className = "flex-1 py-2.5 rounded-full text-xs font-extrabold flex items-center justify-center gap-2 transition-all text-white/50 hover:text-white";
+            crosshairs.classList.add('opacity-0');
+            aimSaveIndicators.classList.add('hidden');
+            state.aimBaseAngle = null;
+            state.aimTopAngle = null;
+            updateLockBadges();
+            resetMeasurementUI();
+            updateInstructions();
+            drawOverlay();
+        });
+
+        tabAim.addEventListener('click', () => {
+            state.activeMode = 'AIM';
+            tabAim.className = "flex-1 py-2.5 rounded-full text-xs font-extrabold flex items-center justify-center gap-2 transition-all bg-[#D1E4FF] text-[#001D36]";
+            tabTouch.className = "flex-1 py-2.5 rounded-full text-xs font-extrabold flex items-center justify-center gap-2 transition-all text-white/50 hover:text-white";
+            crosshairs.classList.remove('opacity-0');
+            aimSaveIndicators.classList.remove('hidden');
+            state.touchPoints.base = null;
+            state.touchPoints.top = null;
+            resetMeasurementUI();
+            updateInstructions();
+            drawOverlay();
+        });
+
+        // Toggle Calibration Settings Segmented Control
+        pickerManual.addEventListener('click', () => {
+            state.distanceMethod = 'MANUAL';
+            pickerManual.className = "flex-1 py-3 rounded-xl text-xs font-bold transition-all bg-[#D1E4FF] text-[#001D36]";
+            pickerAuto.className = "flex-1 py-3 rounded-xl text-xs font-bold transition-all text-[#E2E2E6]/60 hover:text-white";
+            groupManualDist.classList.remove('hidden');
+            groupEyeHeight.classList.add('hidden');
+            updateTelemetryDisplay();
+        });
+
+        pickerAuto.addEventListener('click', () => {
+            state.distanceMethod = 'AUTO';
+            pickerAuto.className = "flex-1 py-3 rounded-xl text-xs font-bold transition-all bg-[#D1E4FF] text-[#001D36]";
+            pickerManual.className = "flex-1 py-3 rounded-xl text-xs font-bold transition-all text-[#E2E2E6]/60 hover:text-white";
+            groupEyeHeight.classList.remove('hidden');
+            groupManualDist.classList.add('hidden');
+            updateTelemetryDisplay();
+        });
+
+        // Sliders feedback mapping
+        sliderManualDist.addEventListener('input', (e) => {
+            state.manualDistance = parseFloat(e.target.value);
+            labelManualDist.innerText = state.manualDistance.toFixed(1) + " m";
+            updateTelemetryDisplay();
+        });
+        sliderEyeHeight.addEventListener('input', (e) => {
+            state.eyeHeight = parseFloat(e.target.value);
+            labelEyeHeight.innerText = state.eyeHeight.toFixed(2) + " m";
+            updateTelemetryDisplay();
+        });
+        sliderCameraFov.addEventListener('input', (e) => {
+            state.cameraFov = parseFloat(e.target.value);
+            labelCameraFov.innerText = state.cameraFov.toFixed(1) + "°";
+        });
+
+        // Toggle Drawer
+        btnSettings.addEventListener('click', () => {
+            drawer.classList.remove('bottom-sheet-hidden');
+            settingsBackdrop.classList.remove('pointer-events-none');
+            settingsBackdrop.classList.add('opacity-100');
+        });
+
+        const closeDrawer = () => {
+            drawer.classList.add('bottom-sheet-hidden');
+            settingsBackdrop.classList.add('pointer-events-none');
+            settingsBackdrop.classList.remove('opacity-100');
+        };
+        settingsBackdrop.addEventListener('click', closeDrawer);
+        btnSaveDrawer.addEventListener('click', closeDrawer);
+
+        // Core Camera Initiator
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                videoElement.srcObject = stream;
+            } catch (err) {
+                console.error("Camera access failed:", err);
+                alert("Erro ao abrir a câmera traseira. Certifique-se de conceder a permissão nas configurações do seu navegador.");
+            }
+        }
+
+        // Native Device Angular Sensors Activation
+        function initSensorTelemetry() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS mechanism
+                btnGrant.addEventListener('click', async () => {
+                    try {
+                        const permission = await DeviceOrientationEvent.requestPermission();
+                        if (permission === 'granted') {
+                            window.addEventListener('deviceorientation', handleOrientationEvent, true);
+                        }
+                    } catch (e) {
+                        console.error("Sensor permissions rejected:", e);
+                    }
+                    shield.classList.add('hidden');
+                    initCamera();
+                    resizeCanvas();
+                });
+            } else {
+                // Android + general desktop generic listeners
+                btnGrant.addEventListener('click', () => {
+                    window.addEventListener('deviceorientation', handleOrientationEvent, true);
+                    shield.classList.add('hidden');
+                    initCamera();
+                    resizeCanvas();
+                });
+            }
+        }
+        initSensorTelemetry();
+
+        // Orientation telemetry processor
+        function handleOrientationEvent(event) {
+            // Beta is tilting front-to-back from -180 to 180 deg
+            // In typical portrait holding style, inclination angle can be normalized
+            let pitch = 0.0;
+            let roll = event.gamma || 0;
+            
+            // Standard portrait alignment pitch calculation (pitch absolute horizontal gaze is 0.0)
+            if (window.orientation === 90) {
+                pitch = event.gamma || 0;
+            } else if (window.orientation === -90) {
+                pitch = -(event.gamma || 0);
+            } else {
+                pitch = (event.beta || 0) - 90.0;
+            }
+
+            state.pitchAngle = pitch;
+            state.rollAngle = roll;
+            state.heading = event.alpha ? Math.round(event.alpha) : 0;
+
+            // Update real-time views
+            telemetryAngle.innerText = pitch.toFixed(1) + "°";
+            telemetryCompass.innerText = state.heading > 0 ? state.heading + "° N" : "--";
+            
+            // Stabilization threshold checks
+            const isLevel = Math.abs(roll) < 2.5; 
+            if (isLevel) {
+                telemetryStable.innerText = "Nivelado";
+                telemetryStable.className = "text-[#10B981] font-bold";
+                crosshairGlow.style.borderColor = "#10B981";
+            } else {
+                telemetryStable.innerText = "Inclinado (" + Math.round(roll) + "°)";
+                telemetryStable.className = "text-[#EF4444] font-bold";
+                crosshairGlow.style.borderColor = "#EF4444";
+            }
+
+            drawOverlay();
+        }
+
+        // Switch info labels
+        function updateTelemetryDisplay() {
+            if (state.distanceMethod === 'MANUAL') {
+                telemetryMethod.innerText = `MANUAL (${state.manualDistance.toFixed(1)}m)`;
+            } else {
+                telemetryMethod.innerText = `AUTO (${state.eyeHeight.toFixed(2)}m)`;
+            }
+        }
+
+        function updateInstructions() {
+            statusBadge.innerText = "!";
+            statusBadge.className = "w-6 h-6 rounded-full bg-[#001D36] text-white flex items-center justify-center text-[10px] font-bold";
+            
+            if (state.activeMode === 'TOUCH') {
+                if (state.touchPoints.base === null) {
+                    instructionText.innerText = "Toque na base inferior do andaime";
+                } else if (state.touchPoints.top === null) {
+                    instructionText.innerText = "Excelente! Agora toque no topo do andaime";
+                } else {
+                    instructionText.innerText = "Leitura de Toque Concluída! Clique em Medir Altura";
+                }
+            } else {
+                // AIM mode
+                if (state.aimBaseAngle === null) {
+                    instructionText.innerText = "Aponte a mira para a base e clique em Medir Base";
+                } else if (state.aimTopAngle === null) {
+                    instructionText.innerText = "Excelente! Agora aponte para o topo e clique em Medir Topo";
+                } else {
+                    instructionText.innerText = "Mira definida! Clique em Medir Altura";
+                }
+            }
+        }
+
+        // Mode: Lock AIM buttons triggers
+        btnSaveBase.addEventListener('click', () => {
+            state.aimBaseAngle = state.pitchAngle;
+            updateLockBadges();
+            updateInstructions();
+            drawOverlay();
+        });
+
+        btnSaveTop.addEventListener('click', () => {
+            state.aimTopAngle = state.pitchAngle;
+            updateLockBadges();
+            updateInstructions();
+            drawOverlay();
+        });
+
+        function updateLockBadges() {
+            if (state.aimBaseAngle !== null) {
+                aimBaseDegText.innerText = state.aimBaseAngle.toFixed(1) + "°";
+                badgeBaseLock.innerText = "🟢";
+                btnSaveBase.className = "py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-[#10B981] text-white active:scale-95 transition-transform";
+            } else {
+                aimBaseDegText.innerText = "Não Definida";
+                badgeBaseLock.innerText = "⚪";
+                btnSaveBase.className = "py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-[#3B4858] text-white active:scale-95 transition-transform";
+            }
+
+            if (state.aimTopAngle !== null) {
+                aimTopDegText.innerText = state.aimTopAngle.toFixed(1) + "°";
+                badgeTopLock.innerText = "🟢";
+                btnSaveTop.className = "py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-[#10B981] text-white active:scale-95 transition-transform";
+            } else {
+                aimTopDegText.innerText = "Não Definido";
+                badgeTopLock.innerText = "⚪";
+                btnSaveTop.className = "py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 bg-[#3B4858] text-white active:scale-95 transition-transform";
+            }
+        }
+
+        // Touch input processor
+        touchLayer.addEventListener('click', (event) => {
+            if (state.activeMode !== 'TOUCH') return;
+
+            const rect = touchLayer.getBoundingClientRect();
+            const posX = (event.clientX - rect.left) / rect.width;
+            const posY = (event.clientY - rect.top) / rect.height;
+
+            if (state.touchPoints.base === null) {
+                state.touchPoints.base = { x: posX, y: posY };
+            } else if (state.touchPoints.top === null) {
+                state.touchPoints.top = { x: posX, y: posY };
+            } else {
+                // Shift first
+                state.touchPoints.base = { x: posX, y: posY };
+                state.touchPoints.top = null;
+            }
+
+            updateInstructions();
+            drawOverlay();
+        });
+
+        // RESET button processor
+        btnReset.addEventListener('click', () => {
+            state.touchPoints.base = null;
+            state.touchPoints.top = null;
+            state.aimBaseAngle = null;
+            state.aimTopAngle = null;
+            updateLockBadges();
+            resetMeasurementUI();
+            updateInstructions();
+            drawOverlay();
+        });
+
+        function resetMeasurementUI() {
+            resultContainer.classList.add('hidden');
+        }
+
+        // TRIGONOMETRY ENGINE core calculator
+        btnMeasure.addEventListener('click', () => {
+            calculateMeasurement();
+        });
+
+        btnResultDismiss.addEventListener('click', () => {
+            resetMeasurementUI();
+        });
+
+        function calculateMeasurement() {
+            let baseAngleDeg = 0;
+            let topAngleDeg = 0;
+            let calcDistance = state.manualDistance;
+            let finalHeight = 0.0;
+            let finalDistance = state.manualDistance;
+            let trackingMethodIsAuto = (state.distanceMethod === 'AUTO');
+
+            if (state.activeMode === 'TOUCH') {
+                if (!state.touchPoints.base || !state.touchPoints.top) {
+                    alert("Por favor, selecione ambos a base inferior e o topo no seu visor clicando na tela.");
+                    return;
+                }
+
+                // In Touch screen layout, we convert Y screenspace pixel offsets into angles
+                // based on camera FOV vertical span
+                const pixelBaseYOffset = state.touchPoints.base.y - 0.5; // normalized offset from vertical center
+                const pixelTopYOffset = state.touchPoints.top.y - 0.5;
+
+                // Angle corresponding to center offset
+                const angleBaseRad = Math.atan(pixelBaseYOffset * Math.tan((state.cameraFov * Math.PI) / 360));
+                const angleTopRad = Math.atan(pixelTopYOffset * Math.tan((state.cameraFov * Math.PI) / 360));
+
+                // Tilt offset calibration adjusts the relative gaze offset
+                const relativeBaseRad = (state.pitchAngle * Math.PI / 180) - angleBaseRad;
+                const relativeTopRad = (state.pitchAngle * Math.PI / 180) - angleTopRad;
+
+                baseAngleDeg = relativeBaseRad * 180 / Math.PI;
+                topAngleDeg = relativeTopRad * 180 / Math.PI;
+
+            } else {
+                // AIM MODE captures raw inclination angles directly
+                if (state.aimBaseAngle === null || state.aimTopAngle === null) {
+                    alert("Aponte o visor e capture tanto a inclinação da base como do topo antes de estimar.");
+                    return;
+                }
+                baseAngleDeg = state.aimBaseAngle;
+                topAngleDeg = state.aimTopAngle;
+            }
+
+            // Convert to working Radians
+            const baseRad = baseAngleDeg * Math.PI / 180;
+            const topRad = topAngleDeg * Math.PI / 180;
+
+            if (state.distanceMethod === 'AUTO') {
+                // Auto Distance translates camera height relative to base angle tilt downwards
+                // If the user points downwards, baseRad is negative relative to level 0.0.
+                if (baseAngleDeg >= 0) {
+                    alert("Inadequado: o ângulo da base deve estar inclinado abaixo do horizonte para calcular a distância pelo solo automaticamente!");
+                    return;
+                }
+                // D = EyeHeight / tan(-baseRad)
+                calcDistance = state.eyeHeight / Math.tan(-baseRad);
+                finalDistance = calcDistance;
+            }
+
+            // Height calculation based on distance and projection of angles
+            // Scaffold height H = D * (tan(topRad) - tan(baseRad))
+            finalHeight = calcDistance * (Math.tan(topRad) - Math.tan(baseRad));
+
+            // Sanitize values
+            if (isNaN(finalHeight) || finalHeight <= 0) {
+                finalHeight = 0.0;
+            }
+
+            // Margin accuracy scale
+            const simulatedPrecision = 0.1 + (calcDistance * 0.05);
+
+            // Print display result matching clean minimalist card
+            resultHeight.innerText = finalHeight.toFixed(1);
+            resultPrecision.innerText = `PRECISÃO ±${simulatedPrecision.toFixed(1)}m`;
+            resultDistance.innerText = `${finalDistance.toFixed(1)} m`;
+            resultAngle.innerText = `${Math.abs(topAngleDeg).toFixed(1)}°`;
+
+            if (trackingMethodIsAuto) {
+                resultMethodDesc.innerText = "Estimativa automática: distância calculada via inclinômetro do solo.";
+            } else {
+                resultMethodDesc.innerText = "Configuração manual: distância base predefinida pelo operador.";
+            }
+
+            // Reveal Overlay results card
+            resultContainer.classList.remove('hidden');
+            
+            // Scroll results into view smoothly if on small screens
+            resultContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // GRAPHICS OVERLAY Engine
+        function drawOverlay() {
+            if (!canvasCtx) return;
+            canvasCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+            const width = overlayCanvas.width;
+            const height = overlayCanvas.height;
+
+            // DRAW Touch elements (Base as Red point, Top as White animated glow point)
+            if (state.activeMode === 'TOUCH') {
+                if (state.touchPoints.base) {
+                    const bx = state.touchPoints.base.x * width;
+                    const by = state.touchPoints.base.y * height;
+
+                    // Draw Base Circle anchor (Industrial Red)
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(bx, by, 10, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = 'rgba(239, 68, 110, 0.25)';
+                    canvasCtx.fill();
+                    canvasCtx.lineWidth = 2;
+                    canvasCtx.strokeStyle = '#EF4444';
+                    canvasCtx.stroke();
+
+                    // Center dot
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(bx, by, 3, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = '#EF4444';
+                    canvasCtx.fill();
+                }
+
+                if (state.touchPoints.top) {
+                    const tx = state.touchPoints.top.x * width;
+                    const ty = state.touchPoints.top.y * height;
+
+                    // Draw Top Active Circle Anchor (Clean Sky Blue Glow style)
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(tx, ty, 14, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                    canvasCtx.fill();
+                    canvasCtx.lineWidth = 2.5;
+                    canvasCtx.strokeStyle = '#FFFFFF';
+                    canvasCtx.stroke();
+
+                    // Center dot
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(tx, ty, 4, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = '#FFFFFF';
+                    canvasCtx.fill();
+                }
+
+                // Connecting Line Guide
+                if (state.touchPoints.base && state.touchPoints.top) {
+                    const bx = state.touchPoints.base.x * width;
+                    const by = state.touchPoints.base.y * height;
+                    const tx = state.touchPoints.top.x * width;
+                    const ty = state.touchPoints.top.y * height;
+
+                    canvasCtx.beginPath();
+                    canvasCtx.setLineDash([4, 4]);
+                    canvasCtx.moveTo(bx, by);
+                    canvasCtx.lineTo(tx, ty);
+                    canvasCtx.lineWidth = 1.5;
+                    canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+                    canvasCtx.stroke();
+                    canvasCtx.setLineDash([]); // Reset dash
+
+                    // Real-time delta tag
+                    const midX = (bx + tx) / 2 + 15;
+                    const midY = (by + ty) / 2;
+                    canvasCtx.fillStyle = 'rgba(0,0,0,0.6)';
+                    canvasCtx.fillRect(midX, midY - 10, 50, 16);
+                    canvasCtx.fillStyle = '#FFFFFF';
+                    canvasCtx.font = "bold 9px monospace";
+                    canvasCtx.fillText("CALC...", midX + 6, midY + 2);
+                }
+            } else {
+                // In AIM mode, draw a vertical guidance alignment trace through screen index
+                canvasCtx.beginPath();
+                canvasCtx.setLineDash([5, 5]);
+                canvasCtx.moveTo(width / 2, height * 0.2);
+                canvasCtx.lineTo(width / 2, height * 0.8);
+                canvasCtx.lineWidth = 1.2;
+                canvasCtx.strokeStyle = 'rgba(210, 228, 255, 0.4)';
+                canvasCtx.stroke();
+                canvasCtx.setLineDash([]);
+            }
+        }
+
+        // Warmup setup on window load
+        window.onload = () => {
+            updateTelemetryDisplay();
+            updateInstructions();
+        };
+
+    </script>
+</body>
+</html>

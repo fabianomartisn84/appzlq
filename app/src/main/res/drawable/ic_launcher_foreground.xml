@@ -1,0 +1,65 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Ambient Shadow for Scaffolding structure -->
+    <path
+        android:fillColor="#15000000"
+        android:pathData="M37,28 L75,28 L75,82 L37,82 Z" />
+
+    <!-- Scaffold Vertical Columns -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M37,26 L37,82 M71,26 L71,82" />
+
+    <!-- Scaffold Horizontal Boards -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:pathData="M31,34 L77,34 M31,54 L77,54 M31,74 L77,74" />
+
+    <!-- Scaffold Diagonal Cross Braces (Safety Orange) -->
+    <path
+        android:strokeColor="#F97316"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M37,34 L71,54 M71,34 L37,54 M37,54 L71,74 M71,54 L37,74" />
+
+    <!-- Side Vertical Tape Measure (Ruler Arrow) -->
+    <!-- Line -->
+    <path
+        android:strokeColor="#F97316"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M18,24 L18,84" />
+    
+    <!-- Arrows (Up & Down pointers) -->
+    <path
+        android:strokeColor="#F97316"
+        android:strokeWidth="3"
+        android:strokeLineJoin="round"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M13,29 L18,24 L23,29 M13,79 L18,84 L23,79" />
+
+    <!-- Ruler tick marks -->
+    <path
+        android:strokeColor="#F97316"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M18,34 L23,34 M18,44 L25,44 M18,54 L23,54 M18,64 L25,64 M18,74 L23,74" />
+
+    <!-- Clean white central measurement badge "H" status -->
+    <path
+        android:fillColor="#F97316"
+        android:pathData="M46,47 L62,47 C64.2,47 66,48.8 66,51 L66,57 C66,59.2 64.2,61 62,61 L46,61 C43.8,61 42,59.2 42,57 L42,51 C42,48.8 43.8,47 46,47 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,51 C48,50.4 48.4,50 49,50 C49.6,50 50,50.4 50,51 L50,53.2 L54,53.2 L54,51 C54,50.4 54.4,50 55,50 C55.6,50 56,50.4 56,51 L56,57 C56,57.6 55.6,58 55,58 C54.4,58 54,57.6 54,57 L54,54.8 L50,54.8 L50,57 C50,57.6 49.6,58 49,58 C48.4,58 48,57.6 48,57 Z" />
+</vector>
